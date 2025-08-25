@@ -543,3 +543,413 @@ function importData() {
     
     reader.readAsText(file);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Data Management Section Rewrite
+
+I'll rewrite the data management section to fix the import functionality. The main issues are with the import logic and data validation.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- ... (head content remains the same) ... -->
+</head>
+<body>
+    <!-- ... (toast container and sidebar remain the same) ... -->
+
+    <!-- Data Section (Rewritten) -->
+    <div id="data" class="content-section">
+        <div class="section-header">
+            <h2>Data Management</h2>
+            <p class="text-muted">Export and import your ecosystem data</p>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Export Data</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="exportProject" class="form-label">Select Project:</label>
+                            <select class="form-select" id="exportProject">
+                                <option value="all">All Projects</option>
+                                <!-- Project options will be loaded here -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Export Format:</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="exportFormat" id="exportJSON" value="json" checked>
+                                <label class="form-check-label" for="exportJSON">
+                                    JSON (for backup and sharing)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="exportFormat" id="exportPDF" value="pdf">
+                                <label class="form-check-label" for="exportPDF">
+                                    PDF Report
+                                </label>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="exportButton">
+                            <i class="bi bi-download"></i> Export Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Import Data</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="importFile" class="form-label">Select JSON File:</label>
+                            <input class="form-control" type="file" id="importFile" accept=".json">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="overwriteData">
+                            <label class="form-check-label" for="overwriteData">
+                                Overwrite existing data
+                            </label>
+                        </div>
+                        <div class="alert alert-warning" id="importWarning" style="display: none;">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <span id="importWarningText"></span>
+                        </div>
+                        <button type="button" class="btn btn-success" id="importButton">
+                            <i class="bi bi-upload"></i> Import Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Data Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 col-6">
+                        <div class="text-center p-3 border rounded">
+                            <h4 id="data-projects-count">0</h4>
+                            <p class="mb-0">Projects</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="text-center p-3 border rounded">
+                            <h4 id="data-assessments-count">0</h4>
+                            <p class="mb-0">Assessments</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="text-center p-3 border rounded">
+                            <h4 id="data-species-count">0</h4>
+                            <p class="mb-0">Species</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <div class="text-center p-3 border rounded">
+                            <h4 id="data-maintenance-count">0</h4>
+                            <p class="mb-0">Maintenance Tasks</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ... (rest of the HTML remains the same) ... -->
+
+    <script>
+        // ... (other JavaScript code remains the same) ...
+
+        // Data Export/Import Functions (Rewritten)
+        function exportData() {
+            const projectId = document.getElementById('exportProject').value;
+            const exportFormat = document.querySelector('input[name="exportFormat"]:checked').value;
+            
+            if (exportFormat === 'json') {
+                exportToJSON(projectId);
+            } else if (exportFormat === 'pdf') {
+                exportToPDF(projectId);
+            }
+        }
+
+        function exportToJSON(projectId) {
+            try {
+                const data = {
+                    projects: projectId === 'all' ? db.getProjects() : db.getProjects().filter(p => p.id === projectId),
+                    assessments: projectId === 'all' ? db.getAssessments() : db.getAssessments().filter(a => a.projectId === projectId),
+                    species: projectId === 'all' ? db.getSpecies() : db.getSpecies().filter(s => s.projectId === projectId),
+                    maintenance: projectId === 'all' ? db.getMaintenance() : db.getMaintenance().filter(m => m.projectId === projectId),
+                    exportedAt: new Date().toISOString(),
+                    app: 'EcoManager Pro',
+                    version: '1.0'
+                };
+                
+                const dataStr = JSON.stringify(data, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                
+                const exportFileDefaultName = `ecomanager-${projectId === 'all' ? 'all-projects' : 'project-' + projectId}-${new Date().toISOString().slice(0, 10)}.json`;
+                
+                // Create download link
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(dataBlob);
+                link.download = exportFileDefaultName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showToast('Export Successful', 'Data has been exported successfully', 'success');
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Export Error', 'Failed to export data', 'error');
+            }
+        }
+
+        function validateImportedData(data) {
+            // Check if data has the expected structure
+            if (!data || typeof data !== 'object') {
+                return false;
+            }
+            
+            // Check for required top-level properties
+            const hasProjects = Array.isArray(data.projects);
+            const hasAssessments = Array.isArray(data.assessments);
+            const hasSpecies = Array.isArray(data.species);
+            const hasMaintenance = Array.isArray(data.maintenance);
+            
+            if (!hasProjects && !hasAssessments && !hasSpecies && !hasMaintenance) {
+                return false;
+            }
+            
+            // Validate individual items if arrays exist
+            if (hasProjects) {
+                for (const project of data.projects) {
+                    if (!project.id || !project.name || !project.startDate) {
+                        return false;
+                    }
+                }
+            }
+            
+            if (hasAssessments) {
+                for (const assessment of data.assessments) {
+                    if (!assessment.id || !assessment.date || !assessment.assessor) {
+                        return false;
+                    }
+                }
+            }
+            
+            return true;
+        }
+
+        function importData() {
+            const fileInput = document.getElementById('importFile');
+            const overwriteData = document.getElementById('overwriteData').checked;
+            const warningElement = document.getElementById('importWarning');
+            const warningText = document.getElementById('importWarningText');
+            
+            // Hide any previous warnings
+            warningElement.style.display = 'none';
+            
+            if (!fileInput.files.length) {
+                warningText.textContent = 'Please select a file to import';
+                warningElement.style.display = 'block';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            
+            // Check file type
+            if (!file.name.endsWith('.json')) {
+                warningText.textContent = 'Please select a JSON file';
+                warningElement.style.display = 'block';
+                return;
+            }
+            
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Validate the imported data structure
+                    if (!validateImportedData(data)) {
+                        warningText.textContent = 'Invalid file format. Please ensure this is a valid EcoManager Pro export file.';
+                        warningElement.style.display = 'block';
+                        return;
+                    }
+                    
+                    // Show confirmation for overwrite
+                    if (overwriteData) {
+                        if (!confirm('WARNING: This will replace ALL your current data. This action cannot be undone. Are you sure you want to continue?')) {
+                            return;
+                        }
+                    }
+                    
+                    // Create backup before import
+                    const backup = {
+                        projects: localStorage.getItem('projects'),
+                        assessments: localStorage.getItem('assessments'),
+                        species: localStorage.getItem('species'),
+                        maintenance: localStorage.getItem('maintenance')
+                    };
+                    
+                    try {
+                        if (overwriteData) {
+                            // Completely replace existing data
+                            if (data.projects) localStorage.setItem('projects', JSON.stringify(data.projects));
+                            if (data.assessments) localStorage.setItem('assessments', JSON.stringify(data.assessments));
+                            if (data.species) localStorage.setItem('species', JSON.stringify(data.species));
+                            if (data.maintenance) localStorage.setItem('maintenance', JSON.stringify(data.maintenance));
+                        } else {
+                            // Merge with existing data
+                            const existingProjects = db.getProjects();
+                            const existingAssessments = db.getAssessments();
+                            const existingSpecies = db.getSpecies();
+                            const existingMaintenance = db.getMaintenance();
+                            
+                            // Function to merge arrays while avoiding duplicates by ID
+                            const mergeArrays = (existing, incoming) => {
+                                if (!incoming) return existing;
+                                
+                                const merged = [...existing];
+                                const existingIds = new Set(existing.map(item => item.id));
+                                
+                                incoming.forEach(newItem => {
+                                    if (!existingIds.has(newItem.id)) {
+                                        merged.push(newItem);
+                                    }
+                                });
+                                
+                                return merged;
+                            };
+                            
+                            // Merge all data types
+                            const mergedProjects = mergeArrays(existingProjects, data.projects);
+                            const mergedAssessments = mergeArrays(existingAssessments, data.assessments);
+                            const mergedSpecies = mergeArrays(existingSpecies, data.species);
+                            const mergedMaintenance = mergeArrays(existingMaintenance, data.maintenance);
+                            
+                            // Save merged data
+                            localStorage.setItem('projects', JSON.stringify(mergedProjects));
+                            localStorage.setItem('assessments', JSON.stringify(mergedAssessments));
+                            localStorage.setItem('species', JSON.stringify(mergedSpecies));
+                            localStorage.setItem('maintenance', JSON.stringify(mergedMaintenance));
+                        }
+                        
+                        // Refresh the UI
+                        loadDashboard();
+                        loadProjects();
+                        loadAssessments();
+                        loadSpecies();
+                        loadMaintenance();
+                        loadProjectSelects();
+                        loadDataSummary();
+                        
+                        showToast('Import Successful', 'Data has been imported successfully', 'success');
+                        
+                        // Clear the file input
+                        fileInput.value = '';
+                        
+                    } catch (error) {
+                        // Restore backup if import fails
+                        localStorage.setItem('projects', backup.projects);
+                        localStorage.setItem('assessments', backup.assessments);
+                        localStorage.setItem('species', backup.species);
+                        localStorage.setItem('maintenance', backup.maintenance);
+                        
+                        throw error;
+                    }
+                    
+                } catch (error) {
+                    console.error('Import error:', error);
+                    warningText.textContent = 'Failed to import data. Please check the file format and try again.';
+                    warningElement.style.display = 'block';
+                }
+            };
+            
+            reader.onerror = function() {
+                warningText.textContent = 'Failed to read the file. Please try again.';
+                warningElement.style.display = 'block';
+            };
+            
+            reader.readAsText(file);
+        }
+
+        function loadDataSummary() {
+            document.getElementById('data-projects-count').textContent = db.getProjects().length;
+            document.getElementById('data-assessments-count').textContent = db.getAssessments().length;
+            document.getElementById('data-species-count').textContent = db.getSpecies().length;
+            document.getElementById('data-maintenance-count').textContent = db.getMaintenance().length;
+        }
+
+        // ... (rest of the JavaScript remains the same) ...
+
+        // Initialize the application
+        function initApp() {
+            if (db.init()) {
+                loadDashboard();
+                loadProjectSelects();
+                setupViewToggle();
+                loadDataSummary();
+                
+                // Initialize tooltips
+                var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
+                
+                // Set up data section event listeners
+                document.getElementById('exportButton').addEventListener('click', exportData);
+                document.getElementById('importButton').addEventListener('click', importData);
+            }
+        }
+
+        // Start the app when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
+```
+
+Key Changes Made:
+
+1. Enhanced Import Validation:
+   · Added a validateImportedData() function to check if the imported file has the correct structure
+   · Added better error messages with a warning display element
+   · Added file type checking for JSON files
+2. Improved User Experience:
+   · Added warning messages for import errors
+   · Added confirmation dialog for overwrite operations
+   · Better error handling throughout the import process
+3. Fixed Data Merging Logic:
+   · Rewrote the merge logic to properly handle arrays and avoid duplicates
+   · Added proper backup and restore functionality
+4. Enhanced Export Function:
+   · Improved the export to use Blob API for better compatibility
+   · Added version information to exported data
+5. Event Listener Initialization:
+   · Ensured the export/import buttons are properly initialized
+
+These changes should fix the import functionality while making the data management section more robust and user-friendly.
