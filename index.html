@@ -361,3 +361,185 @@
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function importData() {
+    const fileInput = document.getElementById('importFile');
+    const overwriteData = document.getElementById('overwriteData').checked;
+    
+    if (!fileInput.files.length) {
+        showToast('Import Error', 'Please select a file to import', 'error');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            // Validate the imported data structure
+            if (!data.projects || !data.assessments || !data.species || !data.maintenance) {
+                throw new Error('Invalid file format: Missing required data sections');
+            }
+            
+            // Create backup before import
+            const backup = {
+                projects: localStorage.getItem('projects'),
+                assessments: localStorage.getItem('assessments'),
+                species: localStorage.getItem('species'),
+                maintenance: localStorage.getItem('maintenance')
+            };
+            
+            try {
+                if (overwriteData) {
+                    // Completely replace existing data
+                    localStorage.setItem('projects', JSON.stringify(data.projects));
+                    localStorage.setItem('assessments', JSON.stringify(data.assessments));
+                    localStorage.setItem('species', JSON.stringify(data.species));
+                    localStorage.setItem('maintenance', JSON.stringify(data.maintenance));
+                } else {
+                    // Merge with existing data - FIXED
+                    const existingProjects = db.getProjects();
+                    const existingAssessments = db.getAssessments();
+                    const existingSpecies = db.getSpecies();
+                    const existingMaintenance = db.getMaintenance();
+                    
+                    // Generate new IDs for imported items to avoid conflicts
+                    const newId = () => Date.now().toString() + Math.random().toString(36).substr(2, 5);
+                    
+                    // Merge projects, ensuring no ID conflicts
+                    const mergedProjects = [...existingProjects];
+                    data.projects.forEach(newProject => {
+                        // Check if project with same name already exists
+                        const exists = existingProjects.find(p => 
+                            p.name === newProject.name && 
+                            p.startDate === newProject.startDate
+                        );
+                        
+                        if (!exists) {
+                            // Give it a new ID to avoid conflicts
+                            const oldId = newProject.id;
+                            newProject.id = newId();
+                            mergedProjects.push(newProject);
+                            
+                            // Update references in other data types
+                            data.assessments.forEach(a => {
+                                if (a.projectId === oldId) a.projectId = newProject.id;
+                            });
+                            data.species.forEach(s => {
+                                if (s.projectId === oldId) s.projectId = newProject.id;
+                            });
+                            data.maintenance.forEach(m => {
+                                if (m.projectId === oldId) m.projectId = newProject.id;
+                            });
+                        }
+                    });
+                    
+                    // Merge assessments
+                    const mergedAssessments = [...existingAssessments];
+                    data.assessments.forEach(newAssessment => {
+                        // Check if assessment with same details already exists
+                        const exists = existingAssessments.find(a => 
+                            a.date === newAssessment.date && 
+                            a.assessor === newAssessment.assessor &&
+                            a.projectId === newAssessment.projectId
+                        );
+                        
+                        if (!exists) {
+                            newAssessment.id = newId();
+                            mergedAssessments.push(newAssessment);
+                        }
+                    });
+                    
+                    // Merge species
+                    const mergedSpecies = [...existingSpecies];
+                    data.species.forEach(newSpecies => {
+                        // Check if species with same name already exists in the same project
+                        const exists = existingSpecies.find(s => 
+                            s.name === newSpecies.name && 
+                            s.projectId === newSpecies.projectId
+                        );
+                        
+                        if (!exists) {
+                            newSpecies.id = newId();
+                            mergedSpecies.push(newSpecies);
+                        }
+                    });
+                    
+                    // Merge maintenance
+                    const mergedMaintenance = [...existingMaintenance];
+                    data.maintenance.forEach(newMaintenance => {
+                        // Check if maintenance with same details already exists
+                        const exists = existingMaintenance.find(m => 
+                            m.activity === newMaintenance.activity && 
+                            m.date === newMaintenance.date &&
+                            m.projectId === newMaintenance.projectId
+                        );
+                        
+                        if (!exists) {
+                            newMaintenance.id = newId();
+                            mergedMaintenance.push(newMaintenance);
+                        }
+                    });
+                    
+                    // Save merged data
+                    localStorage.setItem('projects', JSON.stringify(mergedProjects));
+                    localStorage.setItem('assessments', JSON.stringify(mergedAssessments));
+                    localStorage.setItem('species', JSON.stringify(mergedSpecies));
+                    localStorage.setItem('maintenance', JSON.stringify(mergedMaintenance));
+                }
+                
+                // Refresh the UI
+                loadDashboard();
+                loadProjects();
+                loadAssessments();
+                loadSpecies();
+                loadMaintenance();
+                loadProjectSelects();
+                
+                showToast('Import Successful', 'Data has been imported successfully', 'success');
+                
+                // Clear the file input
+                fileInput.value = '';
+                
+            } catch (error) {
+                // Restore backup if import fails
+                localStorage.setItem('projects', backup.projects);
+                localStorage.setItem('assessments', backup.assessments);
+                localStorage.setItem('species', backup.species);
+                localStorage.setItem('maintenance', backup.maintenance);
+                
+                throw error;
+            }
+            
+        } catch (error) {
+            console.error('Import error:', error);
+            showToast('Import Error', 'Failed to import data. Please check the file format.', 'error');
+        }
+    };
+    
+    reader.onerror = function() {
+        showToast('Import Error', 'Failed to read the file', 'error');
+    };
+    
+    reader.readAsText(file);
+}
